@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.anime365" name="Anime365" version="0.9.4" provider-name="DisZom">
+
+	<requires>
+		<import addon="xbmc.python" version="2.25.0"/>
+		<import addon="script.module.requests" version="2.22.0"/>
+		<import addon="script.module.beautifulsoup4" version="4.3.2"/>
+	</requires>
+	
+	<extension point="xbmc.python.pluginsource" library="main.py">
+		<provides>video</provides>
+	</extension>
+	
+	<extension point="xbmc.addon.metadata">
+	
+		<assets>
+			<icon>icon.png</icon>
+		</assets>
+	
+		<summary lang="ru_RU">Видеодополнение Anime365</summary>
+		<description lang="ru_RU">Аддон для просмотра аниме с сайта "smotret-anime.online"</description>
+	
+		<summary lang="en_US">Video extension Anime365</summary>
+		<description lang="en_US">Addon for viewing anime from the site "smotret-anime.online"</description>
+	
+	    <platform>all</platform>
+	
+	</extension>
+</addon>

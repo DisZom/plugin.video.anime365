@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+	<category label="Вход">
+		<setting label="Аккаунт smotret-anime.online" type="lsep"/>
+		<setting id="sa-login" type="text" label="E-Mail"/>
+		<setting id="sa-paswd" type="text" label="Пароль"/>
+	</category>
+</settings>
