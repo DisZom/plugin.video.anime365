@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*-
-import sys, json
-import requests, certifi
-import urllib3, urllib, urlparse
+import sys, json, re
+import requests, urllib, urlparse
 from bs4 import BeautifulSoup as BS
 import xbmc, xbmcgui, xbmcaddon, xbmcplugin
 
 base_url = sys.argv[0]
 addon_handle = int(sys.argv[1])
-
-main_url = 'https://smotret-anime.online'
-urllib_https = urllib3.PoolManager(ca_certs=certifi.where())
 
 xbmcplugin.setContent(addon_handle, 'videos')
 
@@ -18,7 +14,13 @@ my_addon = xbmcaddon.Addon('plugin.video.anime365')
 acc_login = my_addon.getSetting('sa-login')
 acc_paswd = my_addon.getSetting('sa-paswd')
 
-local_type = '/ozvuchka'
+main_url = 'https://smotret-anime.online'
+local_type = my_addon.getSetting('local-type')
+
+if local_type == 'Dub':
+	local_type = '/ozvuchka'
+else:
+	local_type = '/russkie-subtitry'
 
 def BuildUrlDirection(**kwargs):
 	return "{0}?{1}".format(base_url, urllib.urlencode(kwargs))
@@ -26,12 +28,12 @@ def BuildUrlDirection(**kwargs):
 def Message(title, message):
 	xbmcgui.Dialog().ok(title, message)
 
-def AddDirectionFolder(label, action, **kwargs):
+def AddFolder(label, action, **kwargs):
 	if 'icon' not in kwargs:
-		kwargs.setdefault('icon', "DefaultFolder.png")
+		kwargs.setdefault('icon', 'DefaultFolder.png')
 
 	if 'info' not in kwargs:
-		kwargs.setdefault('info', "")
+		kwargs.setdefault('info', '')
 
 	item = xbmcgui.ListItem(label)
 	item_url = BuildUrlDirection(label = label, action = action, **kwargs)
@@ -40,14 +42,11 @@ def AddDirectionFolder(label, action, **kwargs):
 
 	item.setInfo('video', {'title': label, 'plot': kwargs['info']})
 
-	xbmcplugin.addDirectoryItem(handle=addon_handle, url=item_url, listitem=item, isFolder=True)
+	xbmcplugin.addDirectoryItem(handle = addon_handle, url = item_url, listitem = item, isFolder = True)
 
-def play_video(video_name, video_url):
-	Item = xbmcgui.ListItem(video_name, path=video_url)
-	Item.setProperty('IsPlayable', 'true')
-	xbmc.Player().play(item=video_url, listitem=Item)
+def AccountSession():
+	login_url = main_url + '/users/login'
 
-def GetAccountSession():
 	header = {
 		u'User-Agent': u'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 YaBrowser/20.8.3.115 Yowser/2.5 Safari/537.36'
 	}
@@ -56,9 +55,7 @@ def GetAccountSession():
 
 	reSes.headers.update(header)
 
-	login_url = main_url + '/users/login'
-
-	csrf = BS(reSes.get(login_url).content,'html.parser').find('input',  type = 'hidden').get_attribute_list('value')[0]
+	csrf = BS(reSes.get(login_url).content, 'html.parser').find('input', type = 'hidden').attrs["value"]
 
 	payload_data = {
 		'csrf': csrf,
@@ -78,36 +75,76 @@ def GetAccountSession():
 	else:
 		return reSes
 
-Session = GetAccountSession()
+Session = AccountSession()
+
+def AccountID():
+	account_result = Session.get(main_url)
+	anime_information = BS(account_result.content, 'html.parser')
+
+	return str(re.findall(r'\d+', anime_information.find_all('ul', class_ = 'dropdown-content')[1].find_all('a')[1].attrs['href'])[0])
+
+AccID = AccountID()
 
 def AnimeUrlFixer(bad_urls):
 	fix_urls = []
 
 	for i in range(len(bad_urls)-1):
-		if bad_urls[i].get_attribute_list('href')[0] != bad_urls[i+1].get_attribute_list('href')[0]:
-			fix_urls.append(bad_urls[i].get_attribute_list('href')[0])
+		if bad_urls[i].attrs['href'] != bad_urls[i+1].attrs['href']:
+			fix_urls.append(bad_urls[i].attrs['href'])
 
 	return fix_urls
 
-def ExtractVideoURL(anime_page_url):
-	page_info = Session.get(main_url + anime_page_url)
+def PlayVideo(video_name, url, sub):
+	Item = xbmcgui.ListItem(video_name, path = url)
+	Item.setProperty('IsPlayable', 'true')
 
-	translation_url =  str(BS(page_info.content, 'html.parser').find('iframe', id = "videoFrame").attrs['src'])
+	if local_type == '/russkie-subtitry':
+		Item.setSubtitles([sub])
+		xbmc.Player().showSubtitles(True)
 
-	translation_result = Session.get(translation_url)
+	xbmc.Player().play(item = url, listitem = Item)
 
-	translation_video_element = BS(translation_result.content, 'html.parser').find("video")
+def ExtractVideoData(episode_url):
+	page_info = Session.get(main_url + episode_url)
 
-	try:
-		if translation_video_element == None:
-			video_data = [{"urls":[str(main_url + "/posters/11567.34575557493.jpg")]}]
+	translation_url = BS(page_info.content, 'html.parser').find('iframe', id = 'videoFrame').attrs['src']
+
+	translation_element = BS(Session.get(translation_url).content, 'html.parser').find('video')
+
+	if translation_element != None:
+		if local_type == '/russkie-subtitry':
+			sub_url = translation_element.attrs['data-subtitles'].replace('?willcache', '')
+			if sub_url == '':
+				sub_url = ' '
 		else:
-			video_data = json.loads(str(translation_video_element.attrs["data-sources"]))
+			sub_url = ' '
 
-	except Exception as e:
-		Message("Extract", str(e))
+		video_url = json.loads(translation_element.attrs['data-sources'])[0]['urls'][0]
+	else:
+		video_url = main_url + '/posters/11567.34575557493.jpg'
+		sub_url = ' '
 
-	return video_data[0]["urls"][0]
+	return {'url': video_url, 'sub': sub_url}
+
+def GenerateEpisodeList(page_url):
+	episodes_result = Session.get(main_url + page_url)
+	episodes_info = BS(episodes_result.content, 'html.parser').find_all('div', class_ = "col s12 m6 l4 x3")
+
+	for data in episodes_info:
+		AddFolder(data.find('a').text.replace('play_circle_filled', '').encode('utf-8'), 'anime_episode', episode_page_url = (data.find('a').attrs['href'] + local_type))
+
+	xbmcplugin.endOfDirectory(addon_handle)
+
+def GenerateLocalTeamList(episode_url):
+	localteam_result = Session.get(main_url + episode_url)
+	team_tablet = BS(localteam_result.content, 'html.parser').find_all('div', class_ = 'row')[2].find_all('a')
+
+	for team in team_tablet:
+		data = ExtractVideoData(team.attrs['href'])
+
+		AddFolder(team.text.encode('utf-8'), 'video_episode', url = data['url'], sub = data['sub'])
+
+	xbmcplugin.endOfDirectory(addon_handle)
 
 def AnimeSearch():
 	kb = xbmc.Keyboard()
@@ -119,87 +156,66 @@ def AnimeSearch():
 		query = kb.getText()
 
 		search_result = Session.get(main_url + '/catalog/search?page=1&q=' + str(query))
+		anime_information = BS(search_result.content, 'html.parser')
 
-		try:
-			anime_information = BS(search_result.content,'html.parser')
-
-			anime_names = anime_information.find_all('h2', class_ = "line-1")
-			anime_posters = anime_information.find_all('img')
-			anime_plots = anime_information.find_all('div', class_ = "m-catalog-item__description")
-			anime_urls = AnimeUrlFixer(anime_information.find_all('a', rel="nofollow"))
-		except Exception as e:
-			Message('ParserError', str(e))
+		anime_names = anime_information.find_all('h2', class_ = 'line-1')
+		anime_posters = anime_information.find_all('img')
+		anime_plots = anime_information.find_all('div', class_ = 'm-catalog-item__description')
+		anime_urls = AnimeUrlFixer(anime_information.find_all('a', rel = 'nofollow'))
 
 		for i in range(len(anime_names)):
-			try:
-				anime_name = str(anime_names[i].text.encode('utf-8').replace('смотреть онлайн', ''))
-				anime_poster = str(main_url + anime_posters[i].get_attribute_list('src')[0])
-				anime_plot = str(anime_plots[i].text.encode('utf-8'))
-				anime_url = str(anime_urls[i])
-			except Exception as e:
-				Message('AnimeInfoError', str(e))
+			anime_poster = main_url + anime_posters[i].attrs['src']
 
-			try:
-				check_for_poster = str(Session.get(anime_poster).status_code)
+			if Session.get(anime_poster).status_code == 404:
+				anime_poster = main_url + '/posters/11567.34575557493.jpg'
 
-				if check_for_poster == '404':
-					anime_poster = str(main_url + '/posters/11567.34575557493.jpg')
-
-			except Exception as e:
-				Message('Poster Error', str(e))
-
-			try:
-				AddDirectionFolder(anime_name, 'anime_title', icon = anime_poster, anime_page_url = anime_url, info = anime_plot)
-			except Exception as e:
-				Message('AddDirError', str(e))
+			AddFolder(anime_names[i].text.encode('utf-8').replace('смотреть онлайн', ''), 'anime_title', icon = anime_poster, anime_page_url = anime_urls[i], info = anime_plots[i].text.encode('utf-8'))
 
 	xbmcplugin.endOfDirectory(addon_handle)
 
-def GenerateEpisodeList(page_url):
-	episodes_result = Session.get(main_url + page_url)
+def AnimeOngoing():
+	ongoing_result = Session.get(main_url + '/ongoing?view=big-list')
+	anime_information = BS(ongoing_result.content, 'html.parser')
 
-	episodes_info = BS(episodes_result.content,'html.parser')
-	eps_names_with_urls = episodes_info.find_all('div', class_="col s12 m6 l4 x3")
+	anime_names = anime_information.find_all('h2', class_ = 'line-1')
+	anime_posters = anime_information.find_all('img')
+	anime_plots = anime_information.find_all('div', class_ = 'm-catalog-item__description')
+	anime_urls = AnimeUrlFixer(anime_information.find_all('a', rel = 'nofollow'))
 
-	episodes_names = []
-	episodes_urls = []
+	for i in range(len(anime_names)):
+		anime_poster = main_url + anime_posters[i].attrs['src']
 
-	for i in range(len(eps_names_with_urls)):
-		try:
-			episodes_names.append(eps_names_with_urls[i].find('a').text.replace('play_circle_filled','').encode('utf-8'))
-		except Exception as e:
-			Message("Episode Append Name", str(e))
-		try:
-			episodes_urls.append(str(eps_names_with_urls[i].find("a").get_attribute_list('href')[0]) + local_type)
-		except Exception as e:
-			Message("Episode Append Url", str(e))
+		if Session.get(anime_poster).status_code == 404:
+			anime_poster = main_url + '/posters/11567.34575557493.jpg'
 
-	try:
-		for i in range(len(episodes_names)):
-			AddDirectionFolder(episodes_names[i], 'anime_episode', page_video_url = episodes_urls[i])
-	except Exception as e:
-		Message("Episode Error", str(e))
+		AddFolder(anime_names[i].text.encode('utf-8').replace('смотреть онлайн', ''), 'anime_title', icon = anime_poster, anime_page_url = anime_urls[i], info = anime_plots[i].text.encode('utf-8'))
 
 	xbmcplugin.endOfDirectory(addon_handle)
 
-def GenerateLocalTeamList(episode_url):
-	localteam_result = urllib_https.request('GET', main_url + episode_url).data.decode('utf-8')
+def MyList():
+	AddFolder('Смотрю', 'type_list', ltype = 'watching')
+	AddFolder('Просмотрено', 'type_list', ltype = 'completed')
+	AddFolder('Отложено', 'type_list', ltype = 'onhold')
+	AddFolder('Брошено', 'type_list', ltype = 'dropped')
+	AddFolder('Запланировано', 'type_list', ltype = 'planned')
+	xbmcplugin.endOfDirectory(addon_handle)
 
-	local_name = []
-	local_url = []
+def GenerateMyList(list_type):
+	ongoing_result = Session.get(main_url + '/users/{0}/list/{1}'.format(AccID, list_type))
+	anime_information = BS(ongoing_result.content, 'html.parser')
 
-	team_table = BS(localteam_result, "html.parser").find_all('div', class_ = "row")[2].find_all('a')
+	anime_data = anime_information.find_all('tr', class_ = 'm-animelist-item')
 
-	for i in range(len(team_table)):
-		local_name.append(team_table[i].text)
-		local_url.append(team_table[i].attrs["href"])
-	for i in range(len(local_name)):
-		AddDirectionFolder(local_name[i].encode("utf-8"), 'video_episode', video_url = ExtractVideoURL(local_url[i]))
+	for data in anime_data:
+		info = data.find('a')
+		AddFolder(re.split(r'\W/ ', info.text)[0].encode('utf-8'), 'anime_title', anime_page_url = info.attrs['href'])
 
 	xbmcplugin.endOfDirectory(addon_handle)
 
 def MainMenu():
-	AddDirectionFolder('Поиск','anime_search', icon = 'https://imageup.ru/img66/3615282/search.png', info = "Search")
+	AddFolder('Поиск', 'anime_search', icon = 'https://imageup.ru/img66/3615282/search.png')
+	AddFolder('Онгоинги', 'anime_ongoing', icon = 'https://imageup.ru/img260/3660525/ongoing.jpg')
+	AddFolder('Мой список', 'my_list')
 	xbmcplugin.endOfDirectory(addon_handle)
 
 def router(paramstring):
@@ -209,18 +225,32 @@ def router(paramstring):
 		if params:
 			if params['action'] == 'anime_search':
 				AnimeSearch()
+
+			elif params['action'] == 'anime_ongoing':
+				AnimeOngoing()
+
+			elif params['action'] == 'my_list':
+				MyList()
+
+			elif params['action'] == 'type_list':
+				GenerateMyList(params['ltype'])
+
 			elif params['action'] == 'anime_title':
-				GenerateEpisodeList(params["anime_page_url"])
+				GenerateEpisodeList(params['anime_page_url'])
+
 			elif params['action'] == 'anime_episode':
-				GenerateLocalTeamList(params["page_video_url"])
+				GenerateLocalTeamList(params['episode_page_url'])
+
 			elif params['action'] == 'video_episode':
-				play_video(params['label'], params['video_url'])
+				PlayVideo(params['label'], params['url'], params['sub'])
+
 			else:
-				Message('Invalid paramstring!',str(paramstring))
+				Message('Invalid paramstring!', str(paramstring))
+				xbmc.log(msg='Invalid paramstring: ' + str(paramstring), level=xbmc.LOGDEBUG);
 		else:
 			MainMenu()
 	except Exception as e:
-		Message('ParamsError', str(e))
+		Message('Paramstring error!', str(e))
 
 if __name__ == '__main__':
 	router(sys.argv[2][1:])

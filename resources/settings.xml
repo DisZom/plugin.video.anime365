@@ -5,4 +5,8 @@
 		<setting id="sa-login" type="text" label="E-Mail"/>
 		<setting id="sa-paswd" type="text" label="Пароль"/>
 	</category>
+
+	<category label="Локализация">
+		<setting id="local-type" type="select" label="Тип" values="Sub|Dub" default="Dub"/>
+	</category>
 </settings>
