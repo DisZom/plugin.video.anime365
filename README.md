@@ -5,6 +5,8 @@
 
 - [BeautifulSoup4 v4.3.2](https://github.com/slmosl/script.module.beautifulsoup4)
 
+- [Kodi v"Krypton"-"Leia"](http://mirrors.kodi.tv/releases/)
+
 ## Настройка
 Перед запуском зайдите в настройки плагина, введите e-mail и пароль от аккаунта
 
