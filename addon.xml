@@ -3,7 +3,9 @@
 	<requires>
 		<import addon="xbmc.python" version="2.25.0"/>
 		<import addon="script.module.requests" version="2.22.0"/>
-		<import addon="script.module.beautifulsoup4" version="4.3.2"/>
+		<import addon="script.module.simplejson" version="3.16.1"/>
+		<import addon="script.module.beautifulsoup4" version="4.9.3"/>
+		<import addon="script.module.html5lib" version="0.999.0"/>
 	</requires>
 	
 	<extension point="xbmc.python.pluginsource" library="main.py">
@@ -16,10 +18,10 @@
 		</assets>
 	
 		<summary lang="ru_RU">Видеодополнение Anime365</summary>
-		<description lang="ru_RU">Аддон для просмотра аниме с сайта "smotret-anime.online"</description>
+		<description lang="ru_RU">Аддон для просмотра аниме с сайта Anime365</description>
 	
 		<summary lang="en_US">Video extension Anime365</summary>
-		<description lang="en_US">Addon for viewing anime from the site "smotret-anime.online"</description>
+		<description lang="en_US">Addon for viewing anime from the site Anime365</description>
 	
 	    <platform>all</platform>
 	</extension>
