@@ -7,7 +7,7 @@
 
 - [SimpleJSON v3.16.1](https://github.com/simplejson/simplejson)
 
-- [BeautifulSoup4 v4.3.2](https://github.com/slmosl/script.module.beautifulsoup4)
+- [BeautifulSoup4 v4.9.3](https://github.com/slmosl/script.module.beautifulsoup4)
 
 - [html5lib v0.999.0](https://github.com/html5lib/html5lib-python)
 
