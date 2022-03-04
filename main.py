@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 import xbmc, xbmcgui, xbmcaddon, xbmcplugin
-import urllib, urlparse
 import sys
+
+if sys.version_info.major > 2:  # Python 3
+	from urllib.parse import urlencode, parse_qsl
+else:  # Python 2
+	from urllib import urlencode
+	from urlparse import parse_qsl
 
 try:
 	import simplejson as json
@@ -16,13 +21,16 @@ Addon = xbmcaddon.Addon("plugin.video.anime365")
 
 xbmcplugin.setContent(AddonHandle, "videos")
 
-Anime365 = PyAnime365(Addon.getSetting("sa-login"), Addon.getSetting("sa-paswd"), "sub" if Addon.getSetting("local-type") == "Subtitles" else "voice")
-
 def BuildURLDirection(**kwargs):
-	return "{0}?{1}".format(BaseURL, urllib.urlencode(kwargs))
+	return "{0}?{1}".format(BaseURL, urlencode(kwargs))
 
 def Message(title, message):
-	xbmcgui.Dialog().ok(title, message)
+	xbmcgui.Dialog().ok(str(title), str(message))
+
+Anime365 = PyAnime365(Addon.getSetting("sa-login"), Addon.getSetting("sa-paswd"), "sub" if Addon.getSetting("local-type") == "Subtitles" else "voice")
+
+if not Anime365.SessionStatus:
+	Message("Account", "Invalid E-Mail or Password")
 
 def AddFolder(label, action, **kwargs):
 	Item = xbmcgui.ListItem(label)
@@ -31,8 +39,8 @@ def AddFolder(label, action, **kwargs):
 	if "icon" in kwargs:
 		Item.setArt({"poster": kwargs["icon"], "banner": kwargs["icon"], "icon": kwargs["icon"]})
 
-	if "info" in kwargs:
-		Anime = kwargs["info"]
+	if "animeData" in kwargs:
+		Anime = kwargs["animeData"]
 
 		Item.setArt({"poster": Anime["poster"], "banner": Anime["poster"], "icon": Anime["poster"]})
 		Item.setInfo("video", {"title": label, "plot": Anime["description"]})
@@ -59,7 +67,7 @@ def AnimeSearch():
 		AnimeList = Anime365.GetAnimeListByQuery(kb.getText())
 
 		for Anime in AnimeList:
-			AddFolder(Anime["russian"].encode("utf-8"), "anime_title", info = Anime)
+			AddFolder(Anime["russian"].encode("utf-8"), "anime_title", animeData = Anime)
 
 	xbmcplugin.endOfDirectory(AddonHandle)
 
@@ -95,7 +103,7 @@ def UserList(listType):
 	for AnimeID in UserAnimeList[listType]:
 		Anime = Anime365.GetAnimeByID(AnimeID)
 
-		AddFolder(Anime["russian"].encode("utf-8"), "anime_title", info = Anime)
+		AddFolder(Anime["russian"].encode("utf-8"), "anime_title", animeData = Anime)
 
 	xbmcplugin.endOfDirectory(AddonHandle)
 
@@ -105,7 +113,17 @@ def	AnimeOngoing():
 	for AnimeID in OngoingList:
 		Anime = Anime365.GetAnimeByID(AnimeID)
 
-		AddFolder(Anime["russian"].encode("utf-8"), "anime_title", info = Anime)
+		AddFolder(Anime["russian"].encode("utf-8"), "anime_title", animeData = Anime)
+
+	xbmcplugin.endOfDirectory(AddonHandle)
+
+def	RandomAnimes():
+	RandomAnimeList = Anime365.GetRandomAnimeList()
+
+	for AnimeID in RandomAnimeList:
+		Anime = Anime365.GetAnimeByID(AnimeID)
+
+		AddFolder(Anime["russian"].encode("utf-8"), "anime_title", animeData = Anime)
 
 	xbmcplugin.endOfDirectory(AddonHandle)
 
@@ -113,10 +131,11 @@ def MainMenu():
 	AddFolder("Поиск", "anime_search", icon = "https://imageup.ru/img66/3615282/search.png")
 	AddFolder("Онгоинги", "anime_ongoing", icon = "https://imageup.ru/img260/3660525/ongoing.jpg")
 	AddFolder("Мой список", "my_list")
+	AddFolder("Случайное", "anime_random")
 	xbmcplugin.endOfDirectory(AddonHandle)
 
 def router(paramstring):
-	params = dict(urlparse.parse_qsl(paramstring))
+	params = dict(parse_qsl(paramstring))
 
 	try:
 		if params:
@@ -125,6 +144,9 @@ def router(paramstring):
 
 			elif params["action"] == "anime_ongoing":
 				AnimeOngoing()
+			
+			elif params["action"] == "anime_random":
+				RandomAnimes()
 
 			elif params["action"] == "my_list":
 				MyList()
@@ -133,7 +155,7 @@ def router(paramstring):
 				UserList(params["list_type"])
 
 			elif params["action"] == "anime_title":
-				Anime = eval(params["info"])
+				Anime = eval(params["animeData"])
 				LocalTeamList(Anime["id"])
 
 			elif params["action"] == "anime_transaltion":
@@ -146,12 +168,12 @@ def router(paramstring):
 
 			else:
 				xbmc.log("Invalid Paramstring: " + str(paramstring), xbmc.LOGDEBUG)
-				Message("Invalid Paramstring!", str(paramstring))
+				Message("Invalid Paramstring!", paramstring)
 		else:
 			MainMenu()
 	except Exception as e:
 		xbmc.log("Paramstring Error: " + str(e), xbmc.LOGDEBUG)
-		Message("Paramstring Error!", str(e))
+		Message("Paramstring Error!", e)
 
 if __name__ == "__main__":
 	router(sys.argv[2][1:])

@@ -17,7 +17,8 @@ class PyAnime365():
 		self.LoginHeader = {
 			u"User-Agent": u"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.174 YaBrowser/22.1.3.848 Yowser/2.5 Safari/537.36"
 		}
-
+		
+		self.SessionStatus = False
 		self.Session = self.createAccountSession(login, password)
 
 	def createAccountSession(self, login, password):
@@ -42,9 +43,11 @@ class PyAnime365():
 
 		if "E-mail" in LoginCheckText:
 			LoginSession.close()
+			self.SessionStatus = False
 			print("Invalid E-Mail or password")
 			return requests
 		else:
+			self.SessionStatus = True
 			return LoginSession
 
 	def GetAccountID(self):
@@ -104,7 +107,7 @@ class PyAnime365():
 			}
 
 			AnimeList.append(AnimeTitle)
-		
+
 		return AnimeList
 
 	def GetTranslationListByID(self, animeID):
@@ -116,14 +119,14 @@ class PyAnime365():
 
 		AnimeTranslationsJSON = sorted(AnimeTranslationsJSON, key = lambda x: x["authorsSummary"])
 		AnimeTranslationList = []
-		
+
 		AuthorsTranslation = {}
 		CountEpisodes = int(AnimeTranslationsJSON[0]["series"]["numberOfEpisodes"])
 
 		for Translation in AnimeTranslationsJSON:
 			if not Translation["authorsSummary"]:
 				continue
-			
+
 			if Translation["authorsSummary"] not in AuthorsTranslation:
 				AuthorsTranslation[Translation["authorsSummary"]] = []
 
@@ -163,7 +166,7 @@ class PyAnime365():
 
 			for Anime in AnimeList:
 				UserList[ListType].append(Anime.attrs["data-id"])
-		
+
 		return UserList
 
 	def GetOngoingList(self):
@@ -172,9 +175,22 @@ class PyAnime365():
 
 		Animes = OngoingHTML.find_all("h2", class_ = "line-1")
 		AnimeList = []
-		
+
 		for Anime in Animes:
 			AnimeID = Anime.find("a").attrs["href"].split("-")[-1]
 			AnimeList.append(AnimeID)
-		
+
+		return AnimeList
+
+	def GetRandomAnimeList(self):
+		RandomAnimesResponse = self.Session.get(self.MainURL + "/random?view=big-list")
+		RandomAnimesHTML = BSoup(RandomAnimesResponse.content, "html5lib")
+
+		Animes = RandomAnimesHTML.find_all("h2", class_ = "line-1")
+		AnimeList = []
+
+		for Anime in Animes:
+			AnimeID = Anime.find("a").attrs["href"].split("-")[-1]
+			AnimeList.append(AnimeID)
+
 		return AnimeList
